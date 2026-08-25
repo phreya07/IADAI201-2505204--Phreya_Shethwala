@@ -11,13 +11,18 @@ venv/
 .idea/
 .DS_Store
 Thumbs.db
+data/
+*.zip
 kaggle.json
+kaggle*.json
 data/raw/
 data/processed/
 models/*.keras
 models/*.h5
+models/*.joblib
 !models/.gitkeep
 !models/parkvision_model.keras
 !models/model_metadata.json
+!models/occupancy_classifier.joblib
 .DS_Store
 

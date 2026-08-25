@@ -84,9 +84,13 @@ python setup_kaggle.py "C:\path\to\kaggle.json"
 - total, occupied, available and utilisation metrics;
 - congestion recommendations;
 - annotated PNG and CSV downloads;
-- 30-minute demand forecast;
+- executive management summary and confidence indicators;
+- interactive two-hour demand and capacity forecast;
+- operating-response alerts for normal, high and critical occupancy;
+- configurable parking revenue and turnover scenarios;
 - time, fuel and CO₂ planning estimates;
 - confidence reporting and human-review feedback export;
+- professional responsive command-center interface;
 - safe error messages for invalid images, missing packages and no detections.
 
 ## Testing
@@ -95,6 +99,19 @@ python setup_kaggle.py "C:\path\to\kaggle.json"
 .\.venv\Scripts\python.exe -m pip install pytest
 .\.venv\Scripts\python.exe -m pytest -q
 ```
+
+## Folder structure
+
+- `.streamlit/`: cloud theme and upload settings
+- `configuration/`: optional YOLO OBB training configuration
+- `models/`: trained occupancy classifier and verified metrics
+- `results/`: generated evaluation charts/reports
+- `samples/`: place demonstration parking images here
+- `tests/`: automated application tests
+
+Do not upload `.git`, `.venv`, `venv`, or `__pycache__`. Git recreates `.git`
+when a repository is cloned, virtual environments must be created separately
+on each computer, and Python recreates cache files automatically.
 
 ## Custom full-scene YOLO training
 
@@ -114,10 +131,13 @@ Review test precision, recall and mAP before copying the exported model to
 
 ## Verified classification evidence
 
-The included PKLot MobileNetV2 experiment achieved 93.52% accuracy, 93.86% F1
-and 99.07% occupied recall on its untouched 1,080-image test set. These values
-apply only to that crop-classification test set; they are not advertised as the
-accuracy of arbitrary full-scene uploads.
+The included lightweight PKLot classifier achieved **97.02% accuracy**, **94.99%
+precision**, **99.28% recall**, and **97.09% F1** on 5,000 labelled parking
+spaces in the official untouched test folder. `train_pklot_sklearn.py` provides
+the reproducible training route. It writes accuracy, precision, recall and F1 to
+`models/model_metadata.json` after evaluation on the untouched test split. The
+app displays those values only when that file is present. It never converts a
+detection confidence into “accuracy” and never inserts an unverified number.
 
 ## Honest limitations
 

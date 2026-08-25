@@ -1,6 +1,24 @@
 {
-  "accuracy": 0.9351851851851852,
-  "precision": 0.8916666666666667,
-  "recall": 0.9907407407407407,
-  "f1_score": 0.9385964912280702
+  "model": "Histogram Gradient Boosting on PKLot crop features",
+  "dataset": "PKLot",
+  "classes": [
+    "empty",
+    "occupied"
+  ],
+  "validation_metrics": {
+    "accuracy": 0.9736,
+    "precision": 0.9539877300613497,
+    "recall": 0.9952,
+    "f1_score": 0.9741581832419733,
+    "samples": 5000
+  },
+  "test_metrics": {
+    "accuracy": 0.9702,
+    "precision": 0.9498660543436663,
+    "recall": 0.9928,
+    "f1_score": 0.9708585957363584,
+    "samples": 5000
+  },
+  "test_split": "Official Kaggle/Roboflow test folder",
+  "seed": 42
 }

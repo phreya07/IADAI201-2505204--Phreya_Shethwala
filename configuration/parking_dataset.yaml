@@ -1,10 +1,9 @@
-# Expected YOLO OBB full-scene dataset structure:
-# data/parking_yolo/images/{train,val,test}
-# data/parking_yolo/labels/{train,val,test}
+# Used only by train_yolo_detector.py for an optional custom full-scene model.
 path: ../data/parking_yolo
 train: images/train
-val: images/val
+val: images/validation
 test: images/test
+
 names:
   0: parking_space
   1: vehicle

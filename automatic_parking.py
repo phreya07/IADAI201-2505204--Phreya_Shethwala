@@ -77,7 +77,7 @@ def _line_pairs(lines: list[int], dimension: int) -> list[tuple[int, int]]:
     return [(left, right) for left, right in pairs if 0.55 * median_width <= right - left <= 1.65 * median_width]
 
 
-def infer_marked_parking_spaces(image: np.ndarray) -> tuple[list[SlotPrediction], dict[str, Any]]:
+def infer_marked_parking_spaces(image: np.ndarray, occupancy_model: Any | None = None) -> tuple[list[SlotPrediction], dict[str, Any]]:
     """Detect a regular painted parking grid and classify its bays visually."""
     import cv2
 
@@ -91,6 +91,7 @@ def infer_marked_parking_spaces(image: np.ndarray) -> tuple[list[SlotPrediction]
         return [], {"rows": 0, "vehicles": 0, "inferred_empty": 0, "reliability": "Insufficient evidence", "engine": "painted-grid"}
 
     measurements: list[float] = []
+    crops: list[np.ndarray] = []
     geometry: list[tuple[int, int, int, int]] = []
     row_columns: list[int] = []
     edges = cv2.Canny(cv2.cvtColor(image, cv2.COLOR_RGB2GRAY), 50, 135)
@@ -115,6 +116,7 @@ def infer_marked_parking_spaces(image: np.ndarray) -> tuple[list[SlotPrediction]
                 continue
             gray = cv2.cvtColor(center, cv2.COLOR_RGB2GRAY)
             measurements.append(float(gray.std()))
+            crops.append(center)
             geometry.append((left, top, right, bottom))
     if len(geometry) < 4 or len(geometry) > 80:
         return [], {"rows": 0, "vehicles": 0, "inferred_empty": 0, "reliability": "Insufficient evidence", "engine": "painted-grid"}
@@ -124,6 +126,10 @@ def infer_marked_parking_spaces(image: np.ndarray) -> tuple[list[SlotPrediction]
     # grayscale variation. Keep the threshold near the empty cluster rather
     # than halfway toward bright white vehicles.
     threshold = max(12.0, low + 0.12 * (high - low))
+    learned_probabilities = None
+    if occupancy_model is not None:
+        from parking_classifier import batch_features
+        learned_probabilities = occupancy_model.predict_proba(batch_features(crops))[:, 1]
     results: list[SlotPrediction] = []
     occupied_count = 0
     geometry_index = 0
@@ -131,10 +137,14 @@ def infer_marked_parking_spaces(image: np.ndarray) -> tuple[list[SlotPrediction]
         for column in range(1, column_count + 1):
             (left, top, right, bottom), variation = geometry[geometry_index], measurements[geometry_index]
             geometry_index += 1
-            occupied = variation >= threshold
+            probability = float(learned_probabilities[geometry_index - 1]) if learned_probabilities is not None else None
+            occupied = probability >= .5 if probability is not None else variation >= threshold
             occupied_count += int(occupied)
-            distance = min(0.27, abs(variation - threshold) / 45.0)
-            confidence = 0.70 + distance
+            if probability is not None:
+                confidence = probability if occupied else 1.0 - probability
+            else:
+                distance = min(0.27, abs(variation - threshold) / 45.0)
+                confidence = 0.70 + distance
             results.append(SlotPrediction(
                 slot_id=f"R{row:02d}-S{column:02d}", status="Occupied" if occupied else "Available",
                 confidence=confidence, occupied_probability=confidence if occupied else 1.0 - confidence,
@@ -144,7 +154,8 @@ def infer_marked_parking_spaces(image: np.ndarray) -> tuple[list[SlotPrediction]
     return results, {
         "rows": len(y_pairs), "vehicles": occupied_count,
         "inferred_empty": len(results) - occupied_count,
-        "reliability": "Strong" if len(results) >= 6 else "Limited", "engine": "painted-grid",
+        "reliability": "Strong" if len(results) >= 6 else "Limited",
+        "engine": "PKLot trained classifier" if occupancy_model is not None else "painted-grid heuristic",
     }
 
 
@@ -262,10 +273,15 @@ def infer_parking_spaces(detections: list[VehicleDetection]) -> tuple[list[SlotP
     return predictions, {"rows": len(rows), "vehicles": len(detections), "inferred_empty": inferred_empty, "reliability": reliability}
 
 
-def analyse_automatic(image: np.ndarray, model: Any, confidence: float = 0.045):
-    marked_slots, marked_info = infer_marked_parking_spaces(image)
+def analyse_automatic(image: np.ndarray, model: Any | None, confidence: float = 0.045, occupancy_model: Any | None = None):
+    marked_slots, marked_info = infer_marked_parking_spaces(image, occupancy_model)
     if marked_slots:
         return marked_slots, marked_info
+    if model is None:
+        return [], {
+            "rows": 0, "vehicles": 0, "inferred_empty": 0,
+            "reliability": "Detector unavailable", "engine": "painted-grid",
+        }
     detections = detect_vehicles(image, model, confidence)
     slots, diagnostics = infer_parking_spaces(detections)
     diagnostics["engine"] = "aerial-yolo"
