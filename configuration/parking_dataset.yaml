@@ -1,0 +1,10 @@
+# Expected YOLO OBB full-scene dataset structure:
+# data/parking_yolo/images/{train,val,test}
+# data/parking_yolo/labels/{train,val,test}
+path: ../data/parking_yolo
+train: images/train
+val: images/val
+test: images/test
+names:
+  0: parking_space
+  1: vehicle

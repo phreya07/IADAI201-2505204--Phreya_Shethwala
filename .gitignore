@@ -1,0 +1,23 @@
+# Python temporary files
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+.env
+.secrets/
+.streamlit/secrets.toml
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+kaggle.json
+data/raw/
+data/processed/
+models/*.keras
+models/*.h5
+!models/.gitkeep
+!models/parkvision_model.keras
+!models/model_metadata.json
+.DS_Store
+

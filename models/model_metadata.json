@@ -1,0 +1,22 @@
+{
+  "model": "MobileNetV2 transfer learning",
+  "input_size": [
+    224,
+    224,
+    3
+  ],
+  "class_names": [
+    "empty",
+    "occupied"
+  ],
+  "occupied_class_index": 1,
+  "occupied_threshold": 0.62,
+  "validation_macro_f1": 0.9731,
+  "selected_training_phase": "fine-tuned",
+  "test_metrics": {
+    "accuracy": 0.9352,
+    "precision": 0.8917,
+    "recall": 0.9907,
+    "f1_score": 0.9386
+  }
+}
