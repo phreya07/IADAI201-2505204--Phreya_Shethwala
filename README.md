@@ -1,151 +1,82 @@
-# ParkVision AI — Automatic Parking Analytics
+# ParkVision AI
 
-ParkVision is a Streamlit smart-city application that accepts a parking-lot
-photograph, detects painted bays automatically and uses aerial YOLO as a
-fallback, annotates the image and reports capacity,
-utilisation, congestion, forecasts and urban-impact estimates.
+ParkVision AI is a computer-vision parking analytics platform developed for smart urban mobility. It analyses a parking-lot image from a supported fixed camera, classifies each configured parking space as available or occupied, and converts the results into clear utilisation metrics and congestion guidance.
 
-## What changed
+The system combines a MobileNetV2 image-classification model with a professional Streamlit dashboard. It is designed to help drivers, parking operators, and urban planners understand parking availability quickly and make better mobility decisions.
 
-The primary app no longer uses a fixed 12-slot grid. Users do not enter rows,
-columns, margins or layout JSON. The flow is:
+# Key Features
 
-```text
-Original parking photograph
-        ↓
-Painted-bay grid detection; aerial YOLO fallback
-        ↓
-Automatic bay classification or row/gap inference
-        ↓
-Occupied/available estimates, map, reports and insights
-```
+Slot-level classification of available and occupied parking spaces
 
-The earlier PKLot MobileNetV2 model and its genuine evaluation evidence remain
-in the repository for the classification part of the assessment. The automatic
-app uses YOLO because a crop classifier cannot locate spaces in a new image.
-It loads `models/parking_best.onnx` when a custom trained detector is present;
-otherwise it uses the included aerial DOTA vehicle detector.
+MobileNetV2 transfer learning with two-stage training and fine-tuning
 
-## Windows — easiest method
+Automatic validation-based calibration of the occupancy threshold
 
-Extract the complete ZIP and double-click `RUN_APP.bat`. It creates `.venv`,
-installs the correct packages and opens Streamlit. The official `yolo11n-obb.onnx`
-model is already included, so analysis does not download weights at runtime.
+Annotated parking map with colour-coded space boundaries
 
-Manual PowerShell commands:
+Real-time availability, occupancy, utilisation, and congestion metrics
 
-```powershell
-cd "C:\path\to\ParkVision_AI"
-py -3.12 -m venv .venv
-.\.venv\Scripts\python.exe -m pip install --upgrade pip
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
-.\.venv\Scripts\python.exe -m streamlit run app.py
-```
+Confidence scores and low-confidence prediction warnings
 
-Open the `Local URL` printed by Streamlit, normally `http://localhost:8501`.
-The message `Uvicorn server started` alone is not an error; keep that terminal
-open while using the browser.
+Operational recommendations based on parking demand
 
-## How to obtain the best result
+Downloadable annotated image and slot-level CSV report
 
-1. Upload the original JPG or PNG—not a screenshot containing old boxes,
-   Streamlit controls, captions or labels.
-2. Use a clear image showing most of the parking area.
-3. Keep the default aerial confidence at `0.045`. Lower it slightly if a real vehicle
-   is missed; raise it if background objects are detected incorrectly.
-4. Check the annotated map and use the Review tab to correct uncertain results.
+Human-review interface for correcting predictions and exporting feedback
 
-The program deliberately does not invent outer empty spaces that have no visual
-evidence. Empty gaps are inferred between vehicles in a discovered row. A
-completely empty parking lot needs a parking-line/space segmentation model
-trained on full-scene polygon annotations; vehicle-only YOLO cannot know the
-capacity of an unmarked or fully empty area.
+Input validation, model validation, and safe error handling
 
-## Secure Kaggle setup
+Responsive Streamlit interface for local or cloud deployment
 
-The Kaggle API key downloads training data; it does not improve predictions by
-itself. Never hard-code or commit it. For Streamlit Cloud, add:
+# System Workflow
 
-```toml
-KAGGLE_USERNAME = "your_username"
-KAGGLE_KEY = "your_private_key"
-```
+The user uploads a JPG or PNG image from the configured parking camera.
 
-under **App settings → Secrets**. For local retraining:
+The application reads normalized parking-space polygons from a layout JSON file.
 
-```powershell
-python setup_kaggle.py "C:\path\to\kaggle.json"
-```
+Each parking space is cropped and resized to 224 × 224 pixels.
 
-## Included features
+MobileNetV2 calculates the probability that each space is occupied.
 
-- automatic multi-layout vehicle detection;
-- inferred parking rows and visible empty gaps;
-- total, occupied, available and utilisation metrics;
-- congestion recommendations;
-- annotated PNG and CSV downloads;
-- executive management summary and confidence indicators;
-- interactive two-hour demand and capacity forecast;
-- operating-response alerts for normal, high and critical occupancy;
-- configurable parking revenue and turnover scenarios;
-- time, fuel and CO₂ planning estimates;
-- confidence reporting and human-review feedback export;
-- professional responsive command-center interface;
-- safe error messages for invalid images, missing packages and no detections.
+A calibrated threshold converts each probability into an Available or Occupied result.
 
-## Testing
+The system annotates the image and calculates availability, utilisation, confidence, and congestion statistics.
 
-```powershell
-.\.venv\Scripts\python.exe -m pip install pytest
-.\.venv\Scripts\python.exe -m pytest -q
-```
+Results can be reviewed and downloaded for reporting or future model improvement.
 
-## Folder structure
+# Limitations
 
-- `.streamlit/`: cloud theme and upload settings
-- `configuration/`: optional YOLO OBB training configuration
-- `models/`: trained occupancy classifier and verified metrics
-- `results/`: generated evaluation charts/reports
-- `samples/`: place demonstration parking images here
-- `tests/`: automated application tests
+The current version requires a fixed camera and a matching polygon layout.
 
-Do not upload `.git`, `.venv`, `venv`, or `__pycache__`. Git recreates `.git`
-when a repository is cloned, virtual environments must be created separately
-on each computer, and Python recreates cache files automatically.
+It does not automatically detect parking-space boundaries in an arbitrary image.
 
-## Custom full-scene YOLO training
+Major camera movement can make the configured polygons inaccurate.
 
-For the strongest generalisation, annotate full parking scenes in YOLO OBB
-format with `parking_space` and `vehicle` polygons. Keep source cameras grouped
-when making the 70/15/15 train/validation/test split. Place the images and labels
-under `data/parking_yolo` as described in
-`configuration/parking_dataset.yaml`, then run:
+Strong shadows, severe glare, night scenes, rain, and vehicle occlusion may reduce accuracy.
 
-```powershell
-.\.venv\Scripts\python.exe -m pip install -r requirements-training.txt
-.\.venv\Scripts\python.exe train_yolo_detector.py
-```
+Performance depends on the diversity and quality of the training data.
 
-Review test precision, recall and mAP before copying the exported model to
-`models/parking_best.onnx`. The app automatically prefers that file.
+Predictions with low confidence should be reviewed manually.
 
-## Verified classification evidence
+# Future Improvements
 
-The included lightweight PKLot classifier achieved **97.02% accuracy**, **94.99%
-precision**, **99.28% recall**, and **97.09% F1** on 5,000 labelled parking
-spaces in the official untouched test folder. `train_pklot_sklearn.py` provides
-the reproducible training route. It writes accuracy, precision, recall and F1 to
-`models/model_metadata.json` after evaluation on the untouched test split. The
-app displays those values only when that file is present. It never converts a
-detection confidence into “accuracy” and never inserts an unverified number.
+Automatic parking-space detection for unseen camera views
 
-## Honest limitations
+Live video and CCTV-stream processing
 
-No vision system can guarantee 100% accuracy for every internet photograph.
-Heavy occlusion, night scenes, extreme camera angles, tiny vehicles and unusual
-parking geometry may reduce performance. For production-grade detection of
-every empty bay—including completely empty lots—the next training stage should
-use full parking images with polygon annotations for both `parking_space` and
-`vehicle`, evaluated using precision, recall and mAP on an unseen test set.
+Temporal smoothing across consecutive video frames
+
+Expanded training data for night, rain, and extreme lighting conditions
+
+Multi-camera parking management
+
+Historical utilisation analytics and demand forecasting
+
+Database integration and operator alerts
+
+Continuous retraining using verified human-review feedback
+
+
+
 
 streamlit - https://iadai201-2505204--phreyashethwala-ulexplxinsemmybur7ymtr.streamlit.app/
