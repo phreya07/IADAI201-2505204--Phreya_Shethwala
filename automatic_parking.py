@@ -246,6 +246,77 @@ def load_yolo(weights: str | Path = "models/yolo11n-obb.onnx") -> Any:
     return ort.InferenceSession(str(path), providers=["CPUExecutionProvider"])
 
 
+def detect_parking_spaces(
+    image: np.ndarray, model: Any, confidence: float = 0.25
+) -> tuple[list[SlotPrediction], dict[str, Any]]:
+    """Directly detect empty and occupied spaces with the custom full-scene model."""
+    import cv2
+
+    height, width = image.shape[:2]
+    input_shape = model.get_inputs()[0].shape
+    size = int(input_shape[-1]) if isinstance(input_shape[-1], int) else 320
+    scale = min(size / width, size / height)
+    resized_width, resized_height = round(width * scale), round(height * scale)
+    resized = cv2.resize(image, (resized_width, resized_height), interpolation=cv2.INTER_LINEAR)
+    canvas = np.full((size, size, 3), 114, dtype=np.uint8)
+    pad_x, pad_y = (size - resized_width) // 2, (size - resized_height) // 2
+    canvas[pad_y:pad_y + resized_height, pad_x:pad_x + resized_width] = resized
+    blob = np.transpose(canvas.astype(np.float32) / 255.0, (2, 0, 1))[None]
+    raw = np.asarray(model.run(None, {model.get_inputs()[0].name: blob})[0])
+    rows = raw[0].T if raw.ndim == 3 and raw.shape[1] < raw.shape[2] else raw.reshape(-1, raw.shape[-1])
+    if rows.shape[1] != 6:
+        raise ValueError(f"Unexpected full-scene model output: {rows.shape}")
+
+    boxes: list[list[int]] = []
+    scores: list[float] = []
+    classes: list[int] = []
+    for row in rows:
+        class_id = int(np.argmax(row[4:6]))
+        score = float(row[4 + class_id])
+        if score < confidence:
+            continue
+        cx, cy, box_width, box_height = map(float, row[:4])
+        boxes.append([round(cx - box_width / 2), round(cy - box_height / 2), round(box_width), round(box_height)])
+        scores.append(score)
+        classes.append(class_id)
+    # Suppress duplicates within each class only.  Class-agnostic NMS can
+    # incorrectly delete a valid empty/occupied alternative before the
+    # detector's class confidence has been considered.
+    selected_indices: list[int] = []
+    for class_id in (0, 1):
+        class_indices = [index for index, value in enumerate(classes) if value == class_id]
+        class_boxes = [boxes[index] for index in class_indices]
+        class_scores = [scores[index] for index in class_indices]
+        kept = cv2.dnn.NMSBoxes(class_boxes, class_scores, confidence, 0.35)
+        selected_indices.extend(class_indices[int(index)] for index in np.asarray(kept).reshape(-1))
+    results: list[SlotPrediction] = []
+    ordered = sorted(selected_indices, key=lambda i: (boxes[i][1], boxes[i][0]))
+    for slot_number, index in enumerate(ordered, 1):
+        x, y, box_width, box_height = boxes[index]
+        x1 = float(np.clip((x - pad_x) / scale / width, 0, 1))
+        y1 = float(np.clip((y - pad_y) / scale / height, 0, 1))
+        x2 = float(np.clip((x + box_width - pad_x) / scale / width, 0, 1))
+        y2 = float(np.clip((y + box_height - pad_y) / scale / height, 0, 1))
+        if x2 <= x1 or y2 <= y1:
+            continue
+        occupied = classes[index] == 1
+        results.append(SlotPrediction(
+            slot_id=f"P{slot_number:03d}",
+            status="Occupied" if occupied else "Available",
+            confidence=float(scores[index]),
+            occupied_probability=float(scores[index] if occupied else 1.0 - scores[index]),
+            points=[[x1, y1], [x2, y1], [x2, y2], [x1, y2]],
+        ))
+    occupied_count = sum(item.status == "Occupied" for item in results)
+    return results, {
+        "rows": "Detected automatically",
+        "vehicles": occupied_count,
+        "inferred_empty": len(results) - occupied_count,
+        "reliability": "Strong" if len(results) >= 4 else "Limited",
+        "engine": "custom full-scene YOLO",
+    }
+
+
 def detect_vehicles(image: np.ndarray, model: Any, confidence: float = 0.045) -> list[VehicleDetection]:
     import cv2
 

@@ -3,7 +3,7 @@ setlocal
 cd /d "%~dp0"
 if "%~1"=="" (
   echo Usage: TRAIN_MODEL.bat "C:\path\to\PKLot"
-  echo Drag the extracted PKLot folder onto this file or provide its path.
+  echo The folder must contain train, valid and test COCO exports.
   pause
   exit /b 1
 )
@@ -15,12 +15,12 @@ python -m pip install --upgrade pip
 if errorlevel 1 goto :failed
 pip install -r requirements-training.txt
 if errorlevel 1 goto :failed
-python prepare_dataset.py "%~1" --per-class 2000
+python convert_coco_fullscene.py "%~1" --output data\parking_fullscene
 if errorlevel 1 goto :failed
-python train.py
+python train_yolo_detector.py
 if errorlevel 1 goto :failed
 echo.
-echo Training complete. The calibrated model is ready.
+echo Training complete. models\parking_best.onnx is ready.
 echo Run RUN_APP.bat to open ParkVision.
 pause
 exit /b 0

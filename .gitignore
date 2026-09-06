@@ -20,9 +20,6 @@ data/processed/
 models/*.keras
 models/*.h5
 models/*.joblib
-!models/.gitkeep
-!models/parkvision_model.keras
-!models/model_metadata.json
-!models/occupancy_classifier.joblib
+!models/parking_best.onnx
+!models/fullscene_metrics.json
 .DS_Store
-

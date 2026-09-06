@@ -9,14 +9,12 @@ import pandas as pd
 import streamlit as st
 from PIL import Image
 
-from automatic_parking import analyse_automatic, analyse_calibrated_grid, load_yolo
+from automatic_parking import detect_parking_spaces, load_yolo
 from core import annotate, read_image, summarize
 
 ROOT = Path(__file__).parent
-CUSTOM_WEIGHTS = ROOT / "models" / "parking_best.onnx"
-WEIGHTS = CUSTOM_WEIGHTS if CUSTOM_WEIGHTS.exists() else ROOT / "models" / "yolo11n-obb.onnx"
-METADATA = ROOT / "models" / "model_metadata.json"
-OCCUPANCY_MODEL = ROOT / "models" / "occupancy_classifier.joblib"
+WEIGHTS = ROOT / "models" / "parking_best.onnx"
+METADATA = ROOT / "models" / "fullscene_metrics.json"
 
 st.set_page_config(page_title="ParkVision AI", page_icon="🅿️", layout="wide")
 st.markdown("""
@@ -40,23 +38,14 @@ def get_detector():
     return load_yolo(WEIGHTS)
 
 
-@st.cache_resource(show_spinner=False)
-def get_occupancy_model():
-    if not OCCUPANCY_MODEL.exists():
-        return None
-    import joblib
-    return joblib.load(OCCUPANCY_MODEL)
-
-
 @st.cache_data(show_spinner=False)
 def evaluation_metrics():
-    """Return only metrics written by train.py from an untouched test split."""
+    """Return full-scene metrics measured on the untouched test split."""
     if not METADATA.exists():
         return None
     try:
         data = json.loads(METADATA.read_text(encoding="utf-8"))
-        metrics = data["test_metrics"]
-        return {name: float(metrics[name]) for name in ("accuracy", "precision", "recall", "f1_score")}
+        return {name: float(data[name]) for name in ("precision", "recall", "map50", "map50_95")}
     except (OSError, ValueError, KeyError, TypeError):
         return None
 
@@ -73,48 +62,21 @@ with st.sidebar:
     st.markdown("## ◉ ParkVision AI")
     st.caption("SMART PARKING COMMAND CENTER")
     st.divider()
-    st.markdown("#### Analysis mode")
-    analysis_mode = st.radio(
-        "Choose detection method",
-        ["Calibrated grid (recommended)", "Automatic estimate (experimental)"],
-        help="Calibration guarantees that every known parking bay is analysed. Automatic mode may miss obscured lines or empty edge spaces.",
-    )
-    calibrated = analysis_mode.startswith("Calibrated")
-    if calibrated:
-        st.caption("Set the visible grid once for a fixed camera or regular parking image.")
-        grid_a, grid_b = st.columns(2)
-        grid_rows = grid_a.number_input("Rows", 1, 20, 2)
-        grid_columns = grid_b.number_input("Spaces/row", 1, 30, 5)
-        st.caption(f"Configured capacity: **{grid_rows * grid_columns} spaces**")
-        with st.expander("Adjust grid boundaries", expanded=False):
-            grid_left = st.slider("Left edge", 0.00, 0.40, 0.02, 0.01)
-            grid_right = st.slider("Right edge", 0.60, 1.00, 0.98, 0.01)
-            grid_top = st.slider("Top edge", 0.00, 0.40, 0.08, 0.01)
-            grid_bottom = st.slider("Bottom edge", 0.60, 1.00, 0.96, 0.01)
-            grid_row_gap = st.slider("Gap between rows", 0.00, 0.30, 0.10, 0.01)
-            grid_column_gap = st.slider("Gap between spaces", 0.00, 0.08, 0.01, 0.005)
-            occupancy_threshold = st.slider("Occupied threshold", 0.20, 0.80, 0.50, 0.05)
-    else:
-        grid_rows = grid_columns = 1
-        grid_left, grid_right, grid_top, grid_bottom = 0.0, 1.0, 0.0, 1.0
-        grid_row_gap = grid_column_gap = 0.0
-        occupancy_threshold = 0.50
-    st.markdown("#### Automatic fallback")
-    detection_confidence = st.slider("Aerial YOLO fallback confidence", .01, .30, .045, .005,
-        help="Used only when painted parking bays cannot be detected. Lower values find more vehicles but may add false detections.")
-    st.caption("No rows, columns, margins or layout JSON are required.")
+    st.markdown("#### Automatic full-scene analysis")
+    detection_confidence = st.slider("Detection confidence", .10, .80, .45, .05,
+        help="Lower values find more spaces; higher values keep only stronger detections.")
+    st.caption("No rows, columns, calibration or layout JSON are required.")
     st.divider()
     with st.expander("What is automatic?"):
-        st.write("YOLO locates cars, motorcycles, buses and trucks. ParkVision groups them into parking rows and estimates visible empty gaps between vehicles.")
+        st.write("The custom YOLO model directly detects and classifies each visible parking space as empty or occupied.")
     with st.expander("Important accuracy note"):
-        st.write("Upload the original photograph. Screenshots with old boxes, labels or app controls reduce accuracy. Empty capacity outside detected vehicle rows is not invented.")
+        st.write("Upload a clear original aerial or elevated parking photograph. Screenshots, severe obstruction and invisible bay boundaries reduce accuracy.")
     metrics = evaluation_metrics()
     with st.expander("Verified model evaluation", expanded=bool(metrics)):
         if metrics:
-            st.metric("Held-out test accuracy", f'{metrics["accuracy"]:.2%}')
-            st.caption(f'Precision {metrics["precision"]:.2%} · Recall {metrics["recall"]:.2%} · F1 {metrics["f1_score"]:.2%}')
-            st.caption("Evaluated on 5,000 labelled spaces from the official PKLot test folder.")
-            st.caption("These results come from the untouched test split and are different from per-image confidence.")
+            st.metric("Full-scene test mAP50", f'{metrics["map50"]:.2%}')
+            st.caption(f'Precision {metrics["precision"]:.2%} · Recall {metrics["recall"]:.2%} · mAP50–95 {metrics["map50_95"]:.2%}')
+            st.caption("Evaluated on 400 untouched PKLot scenes containing 23,248 labelled spaces.")
         else:
             st.caption("No verified test report is bundled yet. Train the model first; ParkVision will never invent an accuracy value.")
     with st.expander("Kaggle dataset connection"):
@@ -130,7 +92,7 @@ with st.sidebar:
 st.markdown("""
 <section class="hero"><small>URBANFLOW AI · AUTOMATIC PARKING INTELLIGENCE</small>
 <h1>Parking intelligence,<br>built for real decisions.</h1><p>Turn one parking-lot image into availability, demand forecasts, operational alerts, revenue scenarios, sustainability estimates and exportable management insights.</p>
-<span class="pill">97.02% tested accuracy</span><span class="pill">Automatic space intelligence</span><span class="pill">Demand planning</span><span class="pill">Operations dashboard</span></section>
+<span class="pill">97.0% full-scene mAP50</span><span class="pill">Automatic space intelligence</span><span class="pill">Demand planning</span><span class="pill">Operations dashboard</span></section>
 <div class="statusbar"><span class="statusitem"><i class="dot"></i>AI model ready</span><span class="statusitem"><i class="dot"></i>PKLot trained</span><span class="statusitem"><i class="dot"></i>Privacy-first image processing</span><span class="statusitem"><i class="dot"></i>Reports enabled</span></div>
 """, unsafe_allow_html=True)
 
@@ -158,7 +120,7 @@ if upload is None:
 else:
     try:
         raw = upload.getvalue()
-        settings_key = f"{analysis_mode}:{detection_confidence}:{grid_rows}:{grid_columns}:{grid_left}:{grid_right}:{grid_top}:{grid_bottom}:{grid_row_gap}:{grid_column_gap}:{occupancy_threshold}"
+        settings_key = f"fullscene:{detection_confidence}"
         image_key = hashlib.sha256(raw + settings_key.encode()).hexdigest()
         image = read_image(raw)
         h, w = image.shape[:2]
@@ -168,33 +130,16 @@ else:
         with right:
             st.markdown("### Ready for parking analysis")
             st.write(f"**Image:** {w} × {h} pixels")
-            if calibrated:
-                st.info(f"The calibrated layout will analyse exactly {grid_rows * grid_columns} spaces. Adjust the boundaries in the sidebar if the overlay does not match the lot.", icon="🎯")
-                analyse = st.button("Analyse calibrated parking", type="primary", use_container_width=True)
-            else:
-                st.info("Automatic mode estimates the layout and may miss obscured lines or edge spaces. Review every result.", icon="✨")
-                analyse = st.button("Estimate parking automatically", type="primary", use_container_width=True)
+            st.info("The custom model detects every visible parking space directly—no row or column setup is required.", icon="✨")
+            analyse = st.button("Analyse parking automatically", type="primary", use_container_width=True)
 
         if analyse:
             with st.spinner("Discovering parking spaces and analysing the image..."):
-                occupancy_model = get_occupancy_model()
-                if calibrated:
-                    results, diagnostics = analyse_calibrated_grid(
-                        image, occupancy_model, int(grid_rows), int(grid_columns),
-                        grid_left, grid_right, grid_top, grid_bottom,
-                        grid_row_gap, grid_column_gap, occupancy_threshold,
-                    )
-                else:
-                    results, diagnostics = analyse_automatic(image, None, detection_confidence, occupancy_model)
-                    if not results:
-                        if not WEIGHTS.exists():
-                            raise ValueError(
-                                "Parking lines could not be identified and the fallback detector is not bundled. "
-                                "Add models/yolo11n-obb.onnx to GitHub, then reboot the Streamlit app."
-                            )
-                        results, diagnostics = analyse_automatic(image, get_detector(), detection_confidence, occupancy_model)
+                if not WEIGHTS.exists():
+                    raise ValueError("The custom full-scene model is missing: models/parking_best.onnx")
+                results, diagnostics = detect_parking_spaces(image, get_detector(), detection_confidence)
                 if not results:
-                    raise ValueError("No parked vehicles were detected. Use a clearer, uncropped parking photograph or reduce detection sensitivity. ParkVision will not invent spaces without visual evidence.")
+                    raise ValueError("No parking spaces were detected. Use a clearer aerial/elevated photograph or lower the detection confidence.")
                 summary = summarize(results)
                 marked = annotate(image, results)
                 png = io.BytesIO()
@@ -224,9 +169,9 @@ else:
             else:
                 st.success("Operations normal: enough spaces are currently visible.")
             q1, q2, q3, q4 = st.columns(4)
-            q1.metric("Vehicles detected", diagnostics["vehicles"])
-            q2.metric("Parking rows", diagnostics["rows"])
-            q3.metric("Inferred empty gaps", diagnostics["inferred_empty"])
+            q1.metric("Occupied spaces", diagnostics["vehicles"])
+            q2.metric("Layout", diagnostics["rows"])
+            q3.metric("Detected empty spaces", diagnostics["inferred_empty"])
             q4.metric("Scene reliability", diagnostics["reliability"])
             st.caption(f'Analysis engine: {diagnostics.get("engine", "automatic")}')
 
@@ -249,7 +194,7 @@ else:
                     st.write(f"**Average prediction confidence:** {data['average']:.1%}")
                     st.write(f"**Analysis reliability:** {diagnostics['reliability']}")
             with map_tab:
-                st.markdown('<div class="legend"><span class="good">● Available inferred gap</span> &nbsp; <span class="bad">● YOLO-detected occupied space</span></div>', unsafe_allow_html=True)
+                st.markdown('<div class="legend"><span class="good">● Detected available space</span> &nbsp; <span class="bad">● Detected occupied space</span></div>', unsafe_allow_html=True)
                 st.image(data["output"], caption="Automatic ParkVision result", use_container_width=True)
                 st.download_button("Download annotated result", data["png"], "parkvision_automatic_result.png", "image/png", use_container_width=True)
             with report_tab:
@@ -312,7 +257,7 @@ else:
                 quality1, quality2, quality3 = st.columns(3)
                 quality1.metric("Average confidence", f"{data['average']:.1%}")
                 quality2.metric("Needs review", data["review"])
-                quality3.metric("Test-set accuracy", f'{metrics["accuracy"]:.2%}' if metrics else "Not available")
+                quality3.metric("Full-scene test mAP50", f'{metrics["map50"]:.2%}' if metrics else "Not available")
                 reviewed = data["table"][["Space", "Status", "Confidence"]].copy()
                 reviewed["Corrected status"] = reviewed["Status"]
                 edited = st.data_editor(reviewed, disabled=["Space", "Status", "Confidence"], hide_index=True, use_container_width=True,
@@ -320,7 +265,7 @@ else:
                 corrections = (edited["Corrected status"] != edited["Status"]).sum()
                 st.metric("Corrections marked", int(corrections))
                 st.download_button("Download training feedback", edited.to_csv(index=False).encode(), "parkvision_feedback.csv", "text/csv", use_container_width=True)
-                st.caption("Test accuracy is measured on 5,000 labelled PKLot spaces. Per-image confidence is a different value.")
+                st.caption("Full-scene mAP50 is measured on 400 untouched scenes and 23,248 spaces. Per-box confidence is different.")
             if diagnostics["reliability"] != "Strong":
                 st.warning("This scene has limited evidence. Review the map before using its counts operationally.", icon="⚠️")
     except ValueError as exc:

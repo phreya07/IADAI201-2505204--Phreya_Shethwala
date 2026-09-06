@@ -1,5 +1,5 @@
-# Optional YOLO training configuration
+# Full-scene training configuration
 
-The deployed PKLot occupancy classifier does not require this folder. Use
-`parking_dataset.yaml` only when training the optional full-scene YOLO fallback
-from separately annotated YOLO OBB images and labels.
+`parking_dataset.yaml` defines the processed YOLO dataset used by
+`train_yolo_detector.py`. Update its `path` value when the converted dataset is
+stored outside the default `data/parking_fullscene` location.

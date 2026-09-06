@@ -1,0 +1,20 @@
+{
+  "precision": 0.8950517046053683,
+  "recall": 0.9225373708706752,
+  "map50": 0.9700603498437131,
+  "map50_95": 0.6517439310494064,
+  "per_class_map50": [
+    0.9692800195363199,
+    0.9708406801511064
+  ],
+  "classes": [
+    "empty_space",
+    "occupied_space"
+  ],
+  "test_images": 400,
+  "test_instances": 23248,
+  "image_size": 320,
+  "training_images": 1600,
+  "validation_images": 400,
+  "seed": 42
+}

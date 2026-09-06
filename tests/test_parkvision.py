@@ -1,27 +1,27 @@
-import numpy as np
+import json
+from pathlib import Path
 
-import automatic_parking
-from automatic_parking import VehicleDetection, analyse_automatic, infer_parking_spaces
-from core import read_image, summarize
+from core import read_image, summarize, SlotPrediction
+
+
+def test_model_and_metrics_are_bundled():
+    root = Path(__file__).parents[1]
+    assert (root / "models" / "parking_best.onnx").stat().st_size > 1_000_000
+    metrics = json.loads((root / "models" / "fullscene_metrics.json").read_text())
+    assert metrics["test_images"] == 400
+    assert metrics["test_instances"] == 23248
+    assert metrics["map50"] > 0.95
 
 
 def test_summary_counts():
-    detections = [
-        VehicleDetection((.10, .20, .22, .42), .91, "car"),
-        VehicleDetection((.42, .20, .54, .42), .88, "car"),
+    items = [
+        SlotPrediction("P001", "Occupied", .9, .9, [[0,0],[.1,0],[.1,.1],[0,.1]]),
+        SlotPrediction("P002", "Available", .8, .2, [[.1,0],[.2,0],[.2,.1],[.1,.1]]),
     ]
-    slots, info = infer_parking_spaces(detections)
-    summary = summarize(slots)
-    assert summary["occupied"] == 2
-    assert summary["available"] >= 1
-    assert info["vehicles"] == 2
-
-
-def test_missing_detector_fails_cleanly(monkeypatch):
-    monkeypatch.setattr(automatic_parking, "infer_marked_parking_spaces", lambda *args, **kwargs: ([], {}))
-    slots, info = analyse_automatic(np.zeros((240, 320, 3), dtype=np.uint8), None)
-    assert slots == []
-    assert info["reliability"] == "Detector unavailable"
+    result = summarize(items)
+    assert result["total"] == 2
+    assert result["occupied"] == 1
+    assert result["available"] == 1
 
 
 def test_invalid_upload_is_rejected():

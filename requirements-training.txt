@@ -1,7 +1,7 @@
 -r requirements.txt
-tensorflow==2.20.0
-ultralytics==8.3.190
-scikit-learn==1.7.1
+ultralytics==8.4.128
+onnx==1.19.0
+onnxslim>=0.1.82
 matplotlib==3.10.5
 seaborn==0.13.2
 kaggle==1.7.4.5
