@@ -9,7 +9,7 @@ import pandas as pd
 import streamlit as st
 from PIL import Image
 
-from automatic_parking import analyse_automatic, load_yolo
+from automatic_parking import analyse_automatic, analyse_calibrated_grid, load_yolo
 from core import annotate, read_image, summarize
 
 ROOT = Path(__file__).parent
@@ -73,7 +73,33 @@ with st.sidebar:
     st.markdown("## ◉ ParkVision AI")
     st.caption("SMART PARKING COMMAND CENTER")
     st.divider()
-    st.markdown("#### Automatic analysis")
+    st.markdown("#### Analysis mode")
+    analysis_mode = st.radio(
+        "Choose detection method",
+        ["Calibrated grid (recommended)", "Automatic estimate (experimental)"],
+        help="Calibration guarantees that every known parking bay is analysed. Automatic mode may miss obscured lines or empty edge spaces.",
+    )
+    calibrated = analysis_mode.startswith("Calibrated")
+    if calibrated:
+        st.caption("Set the visible grid once for a fixed camera or regular parking image.")
+        grid_a, grid_b = st.columns(2)
+        grid_rows = grid_a.number_input("Rows", 1, 20, 2)
+        grid_columns = grid_b.number_input("Spaces/row", 1, 30, 5)
+        st.caption(f"Configured capacity: **{grid_rows * grid_columns} spaces**")
+        with st.expander("Adjust grid boundaries", expanded=False):
+            grid_left = st.slider("Left edge", 0.00, 0.40, 0.02, 0.01)
+            grid_right = st.slider("Right edge", 0.60, 1.00, 0.98, 0.01)
+            grid_top = st.slider("Top edge", 0.00, 0.40, 0.08, 0.01)
+            grid_bottom = st.slider("Bottom edge", 0.60, 1.00, 0.96, 0.01)
+            grid_row_gap = st.slider("Gap between rows", 0.00, 0.30, 0.10, 0.01)
+            grid_column_gap = st.slider("Gap between spaces", 0.00, 0.08, 0.01, 0.005)
+            occupancy_threshold = st.slider("Occupied threshold", 0.20, 0.80, 0.50, 0.05)
+    else:
+        grid_rows = grid_columns = 1
+        grid_left, grid_right, grid_top, grid_bottom = 0.0, 1.0, 0.0, 1.0
+        grid_row_gap = grid_column_gap = 0.0
+        occupancy_threshold = 0.50
+    st.markdown("#### Automatic fallback")
     detection_confidence = st.slider("Aerial YOLO fallback confidence", .01, .30, .045, .005,
         help="Used only when painted parking bays cannot be detected. Lower values find more vehicles but may add false detections.")
     st.caption("No rows, columns, margins or layout JSON are required.")
@@ -132,31 +158,41 @@ if upload is None:
 else:
     try:
         raw = upload.getvalue()
-        image_key = hashlib.sha256(raw + str(detection_confidence).encode()).hexdigest()
+        settings_key = f"{analysis_mode}:{detection_confidence}:{grid_rows}:{grid_columns}:{grid_left}:{grid_right}:{grid_top}:{grid_bottom}:{grid_row_gap}:{grid_column_gap}:{occupancy_threshold}"
+        image_key = hashlib.sha256(raw + settings_key.encode()).hexdigest()
         image = read_image(raw)
         h, w = image.shape[:2]
         left, right = st.columns([1.45, 1], gap="large")
         with left:
             st.image(image, caption="Original uploaded photograph", use_container_width=True)
         with right:
-            st.markdown("### Ready for automatic analysis")
+            st.markdown("### Ready for parking analysis")
             st.write(f"**Image:** {w} × {h} pixels")
-            st.info("The detector identifies vehicles and constructs parking rows automatically. No grid calibration is required.", icon="✨")
-            analyse = st.button("Detect parking automatically", type="primary", use_container_width=True)
+            if calibrated:
+                st.info(f"The calibrated layout will analyse exactly {grid_rows * grid_columns} spaces. Adjust the boundaries in the sidebar if the overlay does not match the lot.", icon="🎯")
+                analyse = st.button("Analyse calibrated parking", type="primary", use_container_width=True)
+            else:
+                st.info("Automatic mode estimates the layout and may miss obscured lines or edge spaces. Review every result.", icon="✨")
+                analyse = st.button("Estimate parking automatically", type="primary", use_container_width=True)
 
         if analyse:
             with st.spinner("Discovering parking spaces and analysing the image..."):
-                # Painted-bay analysis works without a large detector. Load YOLO
-                # only if the image does not contain a detectable painted grid.
                 occupancy_model = get_occupancy_model()
-                results, diagnostics = analyse_automatic(image, None, detection_confidence, occupancy_model)
-                if not results:
-                    if not WEIGHTS.exists():
-                        raise ValueError(
-                            "Parking lines could not be identified and the fallback detector is not bundled. "
-                            "Add models/yolo11n-obb.onnx to GitHub, then reboot the Streamlit app."
-                        )
-                    results, diagnostics = analyse_automatic(image, get_detector(), detection_confidence, occupancy_model)
+                if calibrated:
+                    results, diagnostics = analyse_calibrated_grid(
+                        image, occupancy_model, int(grid_rows), int(grid_columns),
+                        grid_left, grid_right, grid_top, grid_bottom,
+                        grid_row_gap, grid_column_gap, occupancy_threshold,
+                    )
+                else:
+                    results, diagnostics = analyse_automatic(image, None, detection_confidence, occupancy_model)
+                    if not results:
+                        if not WEIGHTS.exists():
+                            raise ValueError(
+                                "Parking lines could not be identified and the fallback detector is not bundled. "
+                                "Add models/yolo11n-obb.onnx to GitHub, then reboot the Streamlit app."
+                            )
+                        results, diagnostics = analyse_automatic(image, get_detector(), detection_confidence, occupancy_model)
                 if not results:
                     raise ValueError("No parked vehicles were detected. Use a clearer, uncropped parking photograph or reduce detection sensitivity. ParkVision will not invent spaces without visual evidence.")
                 summary = summarize(results)

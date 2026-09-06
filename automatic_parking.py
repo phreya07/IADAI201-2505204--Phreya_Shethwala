@@ -159,6 +159,79 @@ def infer_marked_parking_spaces(image: np.ndarray, occupancy_model: Any | None =
     }
 
 
+def analyse_calibrated_grid(
+    image: np.ndarray,
+    occupancy_model: Any,
+    rows: int,
+    columns: int,
+    left: float,
+    right: float,
+    top: float,
+    bottom: float,
+    row_gap: float = 0.04,
+    column_gap: float = 0.01,
+    threshold: float = 0.50,
+) -> tuple[list[SlotPrediction], dict[str, Any]]:
+    """Classify every bay in a user-calibrated regular parking grid.
+
+    Coordinates and gaps are normalized to the uploaded image.  Calibration
+    fixes the full-scene localization problem: the learned PKLot classifier is
+    always given exactly ``rows * columns`` crops instead of a partial grid.
+    """
+    if occupancy_model is None:
+        raise ValueError("The PKLot occupancy classifier is not bundled.")
+    if rows < 1 or columns < 1 or rows * columns > 200:
+        raise ValueError("Choose between 1 and 200 calibrated parking spaces.")
+    if not (0 <= left < right <= 1 and 0 <= top < bottom <= 1):
+        raise ValueError("Calibration boundaries must remain inside the image.")
+
+    usable_w = right - left - column_gap * (columns - 1)
+    usable_h = bottom - top - row_gap * (rows - 1)
+    if usable_w <= 0 or usable_h <= 0:
+        raise ValueError("The selected gaps are too large for this grid.")
+    slot_w, slot_h = usable_w / columns, usable_h / rows
+    geometry: list[tuple[float, float, float, float]] = []
+    crops: list[np.ndarray] = []
+    height, width = image.shape[:2]
+    for row in range(rows):
+        y1 = top + row * (slot_h + row_gap)
+        y2 = y1 + slot_h
+        for column in range(columns):
+            x1 = left + column * (slot_w + column_gap)
+            x2 = x1 + slot_w
+            geometry.append((x1, y1, x2, y2))
+            px1, py1 = round(x1 * width), round(y1 * height)
+            px2, py2 = round(x2 * width), round(y2 * height)
+            crop = image[py1:py2, px1:px2]
+            if crop.size == 0:
+                raise ValueError("A calibrated parking space falls outside the image.")
+            crops.append(crop)
+
+    from parking_classifier import batch_features
+    probabilities = occupancy_model.predict_proba(batch_features(crops))[:, 1]
+    results: list[SlotPrediction] = []
+    occupied_count = 0
+    for index, ((x1, y1, x2, y2), probability) in enumerate(zip(geometry, probabilities, strict=True)):
+        row, column = divmod(index, columns)
+        probability = float(np.clip(probability, 0.0, 1.0))
+        occupied = probability >= threshold
+        occupied_count += int(occupied)
+        results.append(SlotPrediction(
+            slot_id=f"R{row + 1:02d}-S{column + 1:02d}",
+            status="Occupied" if occupied else "Available",
+            confidence=probability if occupied else 1.0 - probability,
+            occupied_probability=probability,
+            points=[[x1, y1], [x2, y1], [x2, y2], [x1, y2]],
+        ))
+    return results, {
+        "rows": rows,
+        "vehicles": occupied_count,
+        "inferred_empty": len(results) - occupied_count,
+        "reliability": "Calibrated",
+        "engine": "calibrated PKLot classifier",
+    }
+
+
 def load_yolo(weights: str | Path = "models/yolo11n-obb.onnx") -> Any:
     """Load the bundled ONNX detector without PyTorch or a web download."""
     try:

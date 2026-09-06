@@ -2,6 +2,18 @@
 
 ParkVision AI is a smart parking management application that uses artificial intelligence and computer vision to identify available and occupied parking spaces from an uploaded parking-lot image. It converts visual information into a clear parking summary so that drivers and parking operators can understand the current availability of spaces quickly.
 
+## Recommended calibrated analysis
+
+For a fixed camera or regular parking photograph, select **Calibrated grid
+(recommended)** in the sidebar. Enter the number of visible rows and spaces per
+row, then adjust the grid boundaries and gaps. ParkVision classifies every
+configured bay, so a 2 by 5 layout always produces 10 predictions. Use
+**Automatic estimate** only for exploratory analysis because vehicles can hide
+painted boundaries and cause an automatically discovered layout to be partial.
+
+The reported 97.02% test accuracy measures occupied/empty classification on
+5,000 labelled PKLot crops. It is separate from full-scene space localization.
+
 The project was developed to address a common urban problem: drivers often spend unnecessary time searching for an empty parking space. This increases traffic congestion, travel time, fuel consumption, and air pollution. ParkVision AI provides a simple digital solution by analysing individual parking spaces and presenting the information through a professional Streamlit dashboard.
 
 # Purpose of the Project
