@@ -6,117 +6,73 @@ space as `Available` or `Occupied`. The application uses a custom two-class
 YOLO11 full-scene detector; it does not require rows, columns, a saved camera
 layout, or manual calibration.
 
-## Main capabilities
+# Intelligent Urban Parking Analytics and Space Optimisation Platform
 
-- Automatic full-scene empty/occupied space detection
-- Annotated availability map and slot-level confidence
-- Total, available, occupied and utilisation summaries
-- Congestion alerts and operational recommendations
-- Two-hour demand scenarios
-- Revenue and sustainability planning estimates
-- CSV, PNG and human-review feedback downloads
-- Verified full-scene model evaluation panel
+ParkVision AI is a computer-vision application designed to analyse parking-lot photographs and convert them into useful parking information. Instead of manually counting vehicles and empty spaces, a user can upload an aerial or elevated image and allow the system to detect visible parking spaces, classify them as occupied or available, and present the results through a professional dashboard.
 
-## Model and dataset
+The project goes beyond basic object detection. It combines parking-space analysis with operational alerts, demand forecasting, revenue scenarios, sustainability estimates, quality review and downloadable reports. The aim is to help parking operators, schools, businesses, shopping centres and smart-city teams make faster and more informed parking decisions.
 
-The detector was trained from PKLot COCO annotations converted to YOLO format.
+# Problem Being Addressed
 
-| Split | Complete scenes | Labelled spaces |
-|---|---:|---:|
-| Training | 1,600 | 93,352 |
-| Validation | 400 | 24,712 |
-| Test | 400 | 23,248 |
+Drivers often spend unnecessary time searching for parking because they do not know where spaces are available. This increases congestion, fuel consumption, waiting time and emissions. Parking managers may also lack a simple way to monitor capacity or recognise when overflow arrangements are required.
 
-The untouched test split produced:
+Many parking systems depend on physical sensors installed in every bay. Although sensors can be reliable, installing and maintaining them may be expensive. ParkVision AI explores a camera-based alternative by using computer vision to estimate parking availability from an image.
 
-| Metric | Result |
-|---|---:|
-| Precision | 89.51% |
-| Recall | 92.25% |
-| mAP50 | 97.01% |
-| mAP50-95 | 65.17% |
-| Empty-space mAP50 | 96.93% |
-| Occupied-space mAP50 | 97.08% |
+# Main capabilities
 
-mAP measures full-scene localisation and classification. It is not the same as
-an individual box's confidence or universal accuracy on every photograph.
+Automatic full-scene empty/occupied space detection
 
-## Project structure
+Annotated availability map and slot-level confidence
 
-```text
-ParkVision_AI/
-├── .streamlit/config.toml
-├── app.py
-├── automatic_parking.py
-├── core.py
-├── convert_coco_fullscene.py
-├── train_yolo_detector.py
-├── configuration/parking_dataset.yaml
-├── models/
-│   ├── parking_best.onnx
-│   └── fullscene_metrics.json
-├── results/
-├── tests/
-├── requirements.txt
-├── requirements-training.txt
-└── runtime.txt
-```
+Total, available, occupied and utilisation summaries
 
-The raw dataset and private Kaggle credential are intentionally excluded.
+Congestion alerts and operational recommendations
 
-## Local installation
+Two-hour demand scenarios
 
-Use Python 3.11, create a virtual environment and install the runtime packages.
+Revenue and sustainability planning estimates
 
-```bash
-python -m venv .venv
-python -m pip install -r requirements.txt
-streamlit run app.py
-```
+CSV, PNG and human-review feedback downloads
 
-On Windows, activate the environment first with:
+Verified full-scene model evaluation panel
 
-```powershell
-.venv\Scripts\Activate.ps1
-```
+# Limitations
 
-## Streamlit deployment
+Best results require a clear aerial or elevated parking-lot photograph.
 
-1. Upload the complete project to GitHub.
-2. Confirm that `models/parking_best.onnx` is present.
-3. Create or reboot the Streamlit Community Cloud application.
-4. Set the main file to `app.py`.
+Very small, blurred, dark or heavily obstructed spaces may be missed.
 
-No Kaggle credential is required during prediction or deployment.
+Parking styles outside the PKLot training domain can reduce performance.
 
-### If Streamlit says "Error installing requirements"
+Operational, financial and sustainability outputs are planning estimates.
 
-1. Replace the repository contents with this package. Do not keep an old
-   `packages.txt` or a second `requirements.txt` in another folder.
-2. Open **Manage app**, select **Reboot app**, and wait for installation.
-3. Keep `runtime.txt` at the repository root so Python 3.12 is selected.
+Low-confidence predictions should be reviewed before operational use.
 
-## Reproducing training
+# Future Improvements
 
-```bash
-python -m pip install -r requirements-training.txt
-python convert_coco_fullscene.py /path/to/pklot --output data/parking_fullscene
-python train_yolo_detector.py
-```
+Train with additional parking datasets and camera angles.
 
-Update `configuration/parking_dataset.yaml` if the processed dataset is stored
-elsewhere. The training script evaluates the best checkpoint and exports the
-deployable ONNX model.
+Add more labelled examples from the intended deployment locations.
 
-## Limitations
+Support live CCTV and video analysis.
 
-- Best results require a clear aerial or elevated parking-lot photograph.
-- Very small, blurred, dark or heavily obstructed spaces may be missed.
-- Parking styles outside the PKLot training domain can reduce performance.
-- Operational, financial and sustainability outputs are planning estimates.
-- Low-confidence predictions should be reviewed before operational use.
+Track vehicles and availability changes over time.
 
-## Security
+Store historical utilisation information in a database.
 
-Never upload `kaggle.json`, secrets, virtual environments, raw datasets or
-Python cache files to GitHub.
+Add user authentication and administrator accounts.
+
+Connect the system to digital entrance signs or a mobile application.
+
+Use human corrections for controlled model retraining.
+
+# Conclusion
+
+ParkVision AI demonstrates how computer vision can turn a parking-lot image into practical information. It combines automated availability detection with quality review, forecasting, operational guidance and reporting. The project also separates verified test performance, prediction confidence and image-specific agreement so that its results are presented transparently. With broader labelled training data and location-specific fine-tuning, the system could develop into a useful component of a smart parking management platform.
+
+
+
+
+
+
+streamlit - https://iadai201-2505204--phreyashethwala-ulexplxinsemmybur7ymtr.streamlit.app/
