@@ -89,6 +89,13 @@ On Windows, activate the environment first with:
 
 No Kaggle credential is required during prediction or deployment.
 
+### If Streamlit says "Error installing requirements"
+
+1. Replace the repository contents with this package. Do not keep an old
+   `packages.txt` or a second `requirements.txt` in another folder.
+2. Open **Manage app**, select **Reboot app**, and wait for installation.
+3. Keep `runtime.txt` at the repository root so Python 3.12 is selected.
+
 ## Reproducing training
 
 ```bash

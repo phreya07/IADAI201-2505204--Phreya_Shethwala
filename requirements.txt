@@ -1,3 +1,5 @@
+# Deployment-only dependencies. Training packages belong in requirements-training.txt.
+# These versions have Linux CPython 3.12 wheels and were clean-installed together.
 streamlit==1.49.1
 Pillow==11.3.0
 pandas==2.3.2
